@@ -20,6 +20,7 @@ pragma solidity ^0.6.0;
 
 import "./Ownable.sol";
 import "./ERC20.sol";
+import "./api.sol";
 
 contract ETRToken is ERC20, Ownable {
     // using Roles for Roles.Role;
@@ -33,12 +34,13 @@ contract ETRToken is ERC20, Ownable {
 
     uint256 public constant INVEST_MIN_AMOUNT = 0.01 ether;
     uint256 public constant ETRRATE = 200000;
-    uint256 public constant SOFT_CAP = 250ethr;
+    uint256 public constant SOFT_CAP = 250 ether;
 
     bool started = false;
     bool ended = false;
     string result = "none";
 
+    DateTimeAPI public dateTimeUtils;
     uint32 public startDate = 0;
     uint32 public endDate = 0;
 
@@ -55,7 +57,7 @@ contract ETRToken is ERC20, Ownable {
     mapping(uint256 => address) public userIds;
     uint256 public lastUserId = 0;
 
-    constructor(uint256 initialSupply, address team)
+    constructor(uint256 initialSupply, address team, address dateTimeAddress)
         public
         ERC20("ETH Roll", "ETR", 8)
     {
@@ -73,6 +75,7 @@ contract ETRToken is ERC20, Ownable {
         _mint(team, initialSupply.div(2));
 
         _birthDay = now;
+        dateTimeUtils = DateTimeAPI(dateTimeAddress);
     }    
 
     receive() external payable {
@@ -85,7 +88,7 @@ contract ETRToken is ERC20, Ownable {
 
     function investWithReferrer(uint256 referralNumber) external payable {
 
-        address memory referrerAddress = userIds[referralNumber];
+        address referrerAddress = userIds[referralNumber];
         require(isUserExists(referrerAddress), "The referral number is not correct.");
         invest(msg.sender, referrerAddress);
     }
@@ -94,11 +97,19 @@ contract ETRToken is ERC20, Ownable {
 
     }
 
-    function checkStatus() public view returns(string) {
+    function isEqualString(string memory _a, string memory _b) public pure returns(bool){
+    	if(uint(keccak256(abi.encodePacked(_a))) == uint(keccak256(abi.encodePacked(_b)))) {
+    		return true;
+    	}else{
+    		return false;
+    	}
+    }
+
+    function checkStatus() public returns(string memory) {
         if(started == false)
             return "ICO is not started yet.";
         else if( ended == true ) {
-            if( result == "none" ) {
+            if( isEqualString(result, "none") ) {
                 validateResult();
             }
             
@@ -134,25 +145,25 @@ contract ETRToken is ERC20, Ownable {
         startDate = dateTimeUtils.toTimestamp(year, month, day);        
     }
 
-    function setStopDate(uint16 year, uint8 month, uint day) public onlyOwner {
-        stopDate = dateTimeUtils.toTimestamp(year, month, day);
+    function setEndDate(uint16 year, uint8 month, uint8 day) public onlyOwner {
+        endDate = dateTimeUtils.toTimestamp(year, month, day);        
     }
 
-    function ownerBalance() public view return (uint256) {
+    function ownerBalance() public view returns (uint256) {
         return balanceOf(owner());
     }
 
-    function getMyInformation() public view  return(uint256 id, address referrer, uint256 ethAmount, uint256 ethRefunded){
-        return getUserInformation(msg.sender());
+    function getMyInformation() public view  returns (uint256 id, address referrer, uint256 ethAmount, uint256 ethRefunded){
+        return getUserInformation(msg.sender);
     }
 
-    function getUserInformation(uint256 userId) public view onlyOwner return(uint256 id, address referrer, uint256 ethAmount, uint256 ethRefunded){
+    function getUserInformation(uint256 userId) public view onlyOwner returns (uint256 id, address referrer, uint256 ethAmount, uint256 ethRefunded){
         require(userId > 0 && userId <= lastUserId, "User ID is not valid.");
 
         return getUserInformation(userIds[userId]);
     }
 
-    function getMyReferralNumber() public view return (uint256){
+    function getMyReferralNumber() public view returns (uint256){
         return getReferralNumber(msg.sender);
     }
 
@@ -167,7 +178,7 @@ contract ETRToken is ERC20, Ownable {
         else {
             //refund ether to investors
             for(uint256 idx = 1; idx <= lastUserId; idx ++) {
-                address payable userAddress = userIds[idx];
+                address payable userAddress = address(uint160(userIds[idx]));
                 User memory user = users[userAddress];
 
                 userAddress.transfer(user.ethAmount);
@@ -226,7 +237,7 @@ contract ETRToken is ERC20, Ownable {
         if( totalAmount > ownerBalance() ) {
             //available rate = balance / totalAmount
             
-            refundETH = ethAmount - ethAmount.mul(balance).div(totalAmount);
+            refundETH = ethAmount.sub(ethAmount.mul(ownerBalance()).div(totalAmount));
             ethAmount = ethAmount.sub(refundETH);
 
             //calculate again
@@ -245,16 +256,26 @@ contract ETRToken is ERC20, Ownable {
 
         user.ethAmount = user.ethAmount.add(ethAmount);
         totalInvested = totalInvested.add(ethAmount);
-        if( refundETH ) {
+        if( refundETH > 0 ) {
             msg.sender.transfer(refundETH);
         }
     }
 
-    function getReferralNumber(address userAddress) private view return (uint256){
+    function getReferralNumber(address userAddress) private view returns (uint256){
         require(isUserExists(userAddress), "The user does not exist. Please register.");
 
         User memory user = users[userAddress];
         return user.id;
+    }
+    
+    function getUserInformation(address userAddress) private view returns(uint256 id, address referrer, uint256 ethAmount, uint256 ethRefunded) {
+        require(isUserExists(userAddress), "The user does not exist.");
+        
+        User memory user = users[userAddress];
+        id = user.id;
+        referrer = user.referrer;
+        ethAmount = user.ethAmount;
+        ethRefunded = user.ethRefunded;
     }
 
     /**
