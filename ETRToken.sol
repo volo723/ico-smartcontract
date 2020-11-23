@@ -36,14 +36,6 @@ contract ETRToken is ERC20, Ownable {
     uint256 public constant SOFT_CAP = 250 ether;
 
     enum StatusType {Ready, Started, Ended, Success, Failed, RefundedAll}
-    string[] statusMessage = [
-        "The ICO is not started yet.", 
-        "Running", 
-        "The ICO has been ended.", 
-        "The ICO has been finished successfully.",
-        "The ICO failed. Refunding ether.",
-        "The ICO failed. Everything has been refunded successfully."
-    ];
 
     StatusType status = StatusType.Ready;
 
@@ -106,7 +98,16 @@ contract ETRToken is ERC20, Ownable {
     	}
     }
 
-    function checkStatus() public returns(string memory) {        
+    function checkStatus() public returns(string memory) {       
+        string[6] memory statusMessage = [
+            "The ICO is not started yet.", 
+            "Running", 
+            "The ICO has been ended.", 
+            "The ICO has been finished successfully.",
+            "The ICO failed. Refunding ether.",
+            "The ICO failed. Everything has been refunded successfully."
+        ];
+        
         if(status == StatusType.Ready){
 
         }
@@ -174,7 +175,7 @@ contract ETRToken is ERC20, Ownable {
     }
 
     function withdrawETH() public onlyOwner{
-        require(status == StatusType.Success || status == StatusType.RefundedAll, "Cannot withdraw Ether until the ICO is completed or until refund all when the ICO failed.");
+        require(status == StatusType.Success, "Cannot withdraw Ether until the ICO is completed or until refund all when the ICO failed.");
         require(address(this).balance > 0, "Ether balance is zero.");
         
         msg.sender.transfer(address(this).balance);
