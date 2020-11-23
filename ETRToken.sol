@@ -28,7 +28,6 @@ contract ETRToken is ERC20, Ownable {
     // Roles.Role private _airdrops;
 
     uint256 private _birthDay;
-    uint256 chargedEther = 0;   //owner charges ether for refund fee.
 
     uint8[] _bonusPercents = [200, 100, 50, 25, 0];
 
@@ -36,9 +35,17 @@ contract ETRToken is ERC20, Ownable {
     uint256 public constant ETRRATE = 200000;
     uint256 public constant SOFT_CAP = 250 ether;
 
-    bool started = false;
-    bool ended = false;
-    string result = "none";
+    enum StatusType {Ready, Started, Ended, Success, Failed, RefundedAll}
+    string[] statusMessage = [
+        "The ICO is not started yet.", 
+        "Running", 
+        "The ICO has been ended.", 
+        "The ICO has been finished successfully.",
+        "The ICO failed. Refunding ether.",
+        "The ICO failed. Everything has been refunded successfully."
+    ];
+
+    StatusType status = StatusType.Ready;
 
     uint32 public startDate = 0;
     uint32 public endDate = 0;
@@ -91,10 +98,6 @@ contract ETRToken is ERC20, Ownable {
         invest(msg.sender, referrerAddress);
     }
 
-    function chargeEther() external payable onlyOwner {
-
-    }
-
     function isEqualString(string memory _a, string memory _b) public pure returns(bool){
     	if(uint(keccak256(abi.encodePacked(_a))) == uint(keccak256(abi.encodePacked(_b)))) {
     		return true;
@@ -103,26 +106,27 @@ contract ETRToken is ERC20, Ownable {
     	}
     }
 
-    function checkStatus() public returns(string memory) {
-        if(started == false)
-            return "ICO is not started yet.";
-        else if( ended == true ) {
-            if( isEqualString(result, "none") ) {
-                validateResult();
-            }
-            
-            return result;  //success or failed
+    function checkStatus() public returns(string memory) {        
+        if(status == StatusType.Ready){
+
         }
-        else {
+        else if( status == StatusType.Started) {
             if( now > endDate ) {
+                status = StatusType.Ended;                
                 validateResult();
-                ended = true;
-
-                return result;
             }
-
-            return "Running";
+        }        
+        else if( status == StatusType.Ended ) {
+            validateResult();
         }
+        else if( status == StatusType.Success ) {
+            
+        }
+        else if( status == StatusType.Failed ) {
+            validateResult();
+        }
+
+        return statusMessage[uint8(status)];
     }
    
     /**
@@ -169,28 +173,68 @@ contract ETRToken is ERC20, Ownable {
         return (users[user].id != 0);
     }
 
+    function withdrawETH() public onlyOwner{
+        require(status == StatusType.Success || status == StatusType.RefundedAll, "Cannot withdraw Ether until the ICO is completed or until refund all when the ICO failed.");
+        require(address(this).balance > 0, "Ether balance is zero.");
+        
+        msg.sender.transfer(address(this).balance);
+    }
+    
+    function refundAll() public onlyOwner {
+        require(status == StatusType.Failed, "It is possible to refund only when the ICO failed.");
+        
+        for(uint256 idx = 1; idx <= lastUserId; idx ++) {
+            address payable userAddress = address(uint160(userIds[idx]));
+            User memory user = users[userAddress];
+            
+            if( user.ethRefunded == 0 ) {
+                user.ethRefunded = user.ethAmount;
+                userAddress.transfer(user.ethAmount);
+            }
+        }
+        
+        //check if all refunded.
+        bool refundedAll = true;
+        for(uint256 idx = 1; idx <= lastUserId; idx ++) {
+            address userAddress = userIds[idx];
+            User memory user = users[userAddress];
+            if( user.ethRefunded != user.ethAmount ) {
+                refundedAll = false;
+                break;
+            }
+        }
+
+        if( refundedAll ) {
+            status = StatusType.RefundedAll;
+        }
+    }
+    
+    function refund() public {
+        require(isUserExists(msg.sender), "User does not exist.");
+
+        User memory user = users[msg.sender];
+        
+        if( user.ethRefunded == 0 ) {
+            user.ethRefunded = user.ethAmount;
+            msg.sender.transfer(user.ethAmount);
+        }
+    }
+
     function validateResult() private {
         if( totalInvested >= SOFT_CAP ) {
-            result = "The ICO has been finished successfully.";
+            status = StatusType.Success;
         }
-        else {
-            //refund ether to investors
-            for(uint256 idx = 1; idx <= lastUserId; idx ++) {
-                address payable userAddress = address(uint160(userIds[idx]));
-                User memory user = users[userAddress];
-
-                userAddress.transfer(user.ethAmount);
-                user.ethRefunded = user.ethAmount;
-            }
-
-            result = "The ICO failed. everything was refuneded.";
+        else {            
+            //will refund ether to investors
+            status = StatusType.Failed;
         }
     }
 
     function invest(address userAddress, address referrerAddress) private {
+        require(startDate != 0 && endDate != 0 && startDate < endDate, "The configuration was not set yet.");
         require(now >= startDate, "ICO is not started yet.");
         require(now <= endDate, checkStatus());        
-        require(ended == false, checkStatus());
+        require(status == StatusType.Ended, checkStatus());
         require(!isContract(userAddress), "Cannot be a contract");
         require(!isOwner(userAddress), "You are onwer.");
         require(
@@ -198,8 +242,7 @@ contract ETRToken is ERC20, Ownable {
             "Minimum deposit amount 0.1 ether."
         );
 
-        if( started == false )
-            started = true;
+        status = StatusType.Started;
 
         bool referralBonusFlag = true;
         User memory user;
@@ -243,7 +286,7 @@ contract ETRToken is ERC20, Ownable {
             bonus = amount.mul((getBounusPercent().add(100)).div(100));
             referralBonus =  referralBonusFlag ? amount.div(4) : 0; //25%
 
-            ended = true;
+            status = StatusType.Ended;
         }
 
         //send ETR
