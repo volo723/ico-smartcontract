@@ -32,7 +32,7 @@ contract ETRToken is ERC20, Ownable {
     uint8[] _bonusPercents = [200, 100, 50, 25, 0];
 
     uint256 public constant INVEST_MIN_AMOUNT = 0.01 ether;
-    uint256 public constant ETRRATE = 200000;
+    uint256 public constant ETRRATE = 200000;   
     uint256 public constant SOFT_CAP = 250 ether;
 
     enum StatusType {Ready, Started, Ended, Success, Failed, RefundedAll}
@@ -51,9 +51,14 @@ contract ETRToken is ERC20, Ownable {
         uint256 ethRefunded;    //To validate if ether was refunded correctly.
     }
 
-    mapping(address => User) public users;
-    mapping(uint256 => address) public userIds;
-    uint256 public lastUserId = 0;
+    mapping(address => User) users;
+    mapping(uint256 => address) userIds;
+    uint256 lastUserId = 0;
+    
+    string public DEBUG = "";
+    
+    event Test(string message);
+    event Received(address, uint);
 
     constructor(uint256 initialSupply, address team)
         public
@@ -73,14 +78,17 @@ contract ETRToken is ERC20, Ownable {
         _mint(team, initialSupply.div(2));
 
         _birthDay = now;
+        
+        emit Test("built contract");
     }    
 
     receive() external payable {
-        if (msg.data.length == 0) {
-            return invest(msg.sender, owner());
+        if (msg.data.length == 0) {            
+            invest(msg.sender, owner());
         }
-
-        invest(msg.sender, bytesToAddress(msg.data));
+        else {
+            invest(msg.sender, bytesToAddress(msg.data));    
+        }       
     }
 
     function investWithReferrer(uint256 referralNumber) external payable {
@@ -126,6 +134,8 @@ contract ETRToken is ERC20, Ownable {
         else if( status == StatusType.Failed ) {
             validateResult();
         }
+        
+        DEBUG = statusMessage[uint8(status)];
 
         return statusMessage[uint8(status)];
     }
@@ -145,10 +155,14 @@ contract ETRToken is ERC20, Ownable {
     }
 
     function setStartDate(uint16 year, uint8 month, uint8 day) public onlyOwner {
+        require(status == StatusType.Ready, "The ICO already has been executed. Cannot update anymore.");
         startDate = toTimestamp(year, month, day);        
+        
+         emit Test("built contract");
     }
 
     function setEndDate(uint16 year, uint8 month, uint8 day) public onlyOwner {
+        require(status == StatusType.Ready, "The ICO already has been executed. Cannot update anymore.");
         endDate = toTimestamp(year, month, day);        
     }
 
@@ -174,15 +188,21 @@ contract ETRToken is ERC20, Ownable {
         return (users[user].id != 0);
     }
 
-    function withdrawETH() public onlyOwner{
+    function withdrawEther() public onlyOwner{
         require(status == StatusType.Success, "Cannot withdraw Ether until the ICO is completed or until refund all when the ICO failed.");
         require(address(this).balance > 0, "Ether balance is zero.");
         
         msg.sender.transfer(address(this).balance);
     }
+
+    function etherBalance() public view returns (uint256){
+        return address(this).balance;
+    }
     
     function refundAll() public onlyOwner {
         require(status == StatusType.Failed, "It is possible to refund only when the ICO failed.");
+        
+        status = StatusType.RefundedAll;
         
         for(uint256 idx = 1; idx <= lastUserId; idx ++) {
             address payable userAddress = address(uint160(userIds[idx]));
@@ -193,25 +213,11 @@ contract ETRToken is ERC20, Ownable {
                 userAddress.transfer(user.ethAmount);
             }
         }
-        
-        //check if all refunded.
-        bool refundedAll = true;
-        for(uint256 idx = 1; idx <= lastUserId; idx ++) {
-            address userAddress = userIds[idx];
-            User memory user = users[userAddress];
-            if( user.ethRefunded != user.ethAmount ) {
-                refundedAll = false;
-                break;
-            }
-        }
-
-        if( refundedAll ) {
-            status = StatusType.RefundedAll;
-        }
     }
     
     function refund() public {
         require(isUserExists(msg.sender), "User does not exist.");
+        require(status == StatusType.Failed, "Cannot refund now.");
 
         User memory user = users[msg.sender];
         
@@ -235,7 +241,7 @@ contract ETRToken is ERC20, Ownable {
         require(startDate != 0 && endDate != 0 && startDate < endDate, "The configuration was not set yet.");
         require(now >= startDate, "ICO is not started yet.");
         require(now <= endDate, checkStatus());        
-        require(status == StatusType.Ended, checkStatus());
+        require(status != StatusType.Ended, checkStatus());
         require(!isContract(userAddress), "Cannot be a contract");
         require(!isOwner(userAddress), "You are onwer.");
         require(
@@ -245,6 +251,7 @@ contract ETRToken is ERC20, Ownable {
 
         status = StatusType.Started;
 
+        uint ethAmount = msg.value;
         bool referralBonusFlag = true;
         User memory user;
 
@@ -253,16 +260,16 @@ contract ETRToken is ERC20, Ownable {
             referralBonusFlag = false;
         }
         else {  //new registration
+            lastUserId ++;
+        
             user = User({
                 id: lastUserId,
                 referrer: referrerAddress,
-                ethAmount: 0,
+                ethAmount: ethAmount,
                 ethRefunded: 0
             });
 
             users[userAddress] = user;
-
-            lastUserId ++;
             userIds[lastUserId] = userAddress;
 
             if(isOwner(referrerAddress))
@@ -270,8 +277,7 @@ contract ETRToken is ERC20, Ownable {
         }
 
         uint256 refundETH = 0;
-        uint ethAmount = msg.value;
-        uint256 amount = ethAmount.mul(ETRRATE);
+        uint256 amount = ethAmount.mul(ETRRATE).div(10**18);
         uint256 bonus = amount.mul((getBounusPercent().add(100)).div(100));
         uint256 referralBonus =  referralBonusFlag ? amount.div(4) : 0; //25%
         uint256 totalAmount = bonus.add(referralBonus);
@@ -292,7 +298,7 @@ contract ETRToken is ERC20, Ownable {
 
         //send ETR
         _transfer(owner(), userAddress, bonus);
-        if( !isOwner(referrerAddress) ) {
+        if( referralBonusFlag ) {
             _transfer(owner(), referrerAddress, referralBonus);
         }
 
@@ -306,8 +312,10 @@ contract ETRToken is ERC20, Ownable {
     function getReferralNumber(address userAddress) private view returns (uint256){
         require(isUserExists(userAddress), "The user does not exist. Please register.");
 
-        User memory user = users[userAddress];
-        return user.id;
+        address referrerAddress = users[userAddress].referrer;
+        require(referrerAddress != owner(), "You don't have any referrer.");
+        
+        return users[referrerAddress].id;
     }
     
     function getUserInformation(address userAddress) private view returns(uint256 id, address referrer, uint256 ethAmount, uint256 ethRefunded) {
