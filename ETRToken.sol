@@ -189,7 +189,7 @@ contract ETRToken is ERC20, Ownable {
     }
 
     function withdrawEther() public onlyOwner{
-        require(status == StatusType.Success, "Cannot withdraw Ether until the ICO is completed or until refund all when the ICO failed.");
+        require(status == StatusType.Success || status == StatusType.RefundedAll, "Cannot withdraw Ether until the ICO is completed or until refund all in the case of the ICO failed.");
         require(address(this).balance > 0, "Ether balance is zero.");
         
         msg.sender.transfer(address(this).balance);
