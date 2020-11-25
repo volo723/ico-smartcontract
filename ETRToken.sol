@@ -32,7 +32,7 @@ contract ETRToken is ERC20, Ownable {
     uint8[] _bonusPercents = [200, 100, 50, 25, 0];
 
     uint256 public constant INVEST_MIN_AMOUNT = 0.01 ether;
-    uint256 public constant ETRRATE = 200000;   
+    uint256 public constant ETRRATE = 200000 * 10 ** 8;
     uint256 public constant SOFT_CAP = 250 ether;
 
     enum StatusType {Ready, Started, Ended, Success, Failed, RefundedAll}
