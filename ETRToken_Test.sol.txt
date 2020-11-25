@@ -34,6 +34,12 @@
 // 3.5 Before start date, invest.
 //    - It should return the error message "ICO is not started yet."
 
+// 3.6 New user(address) deposits.
+//    - Using getMyInformation(), check if ether amount and referrer address has been add/set correctly.
+
+// 3.7 Registered user(address) deposits.
+//    - Using getMyInformation(), check if ether amount and referrer address has been add/set correctly.
+
 
 //////////////////////////////// 4. Completed ICO //////////////////////////////////
 // 4.1. if ICO completed successfully, then owner can withraw the invested ether.
@@ -56,3 +62,20 @@
 // 6.1.User can get his information
 //      getMyInformation()
     
+//////////////////////////////// hard cap, soft cap test //////////////////////////////
+//    - total supply: 12,000,000 (00000000)        then team: 6,000,000                    owner: 6,000,000 this is hard cap(50%)
+//    - user1: deposit 1 ether, he will receive 600,000 etr in the first week.   balance: 5,400,000
+//    - user2; deposit 10 ether with referral number [1].4,486,153
+//                    then 6,000,000 + referral bonus(500,000) = 6,500,000 needs, but balance is 5,400,000. so can transfer 5,400,000/650,000 = about 83.077% (0.8307692307692308)
+//            user2 will receive 6,000,000 * percent = 4,984,615.384615385, referrer will receive 10*200000 / 4 * percent = 415384.6153846154 etr  (FYI: 10 ^ 8)
+//            and 1.692307692307692 ether will be refunded.
+
+//            then 
+//                  user2's balance = 4984615(.38461538), user1 : balance + bonus = 600,000 + 415384.6153846154 = 1015384.615384615 (1015384.61538461)
+//                  ether balance = 9.3(1+8.3) ether = 9307692307692307692 wei
+
+//            * in this case, user2's ethAmount must be 8.3 ether, not 10 ether. it will be refuneded if ICO failed.
+                                                       
+//            - at this time, if try to invest once more, then the ICO will be finished as failed.
+//            - afer then, users can refund their ether or owner can refund all.
+//                - if user1 request to refund his ether, then 
