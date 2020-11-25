@@ -132,7 +132,7 @@ contract ETRToken is ERC20, Ownable {
             
         }
         else if( status == StatusType.Failed ) {
-            validateResult();
+            
         }
         
         DEBUG = statusMessage[uint8(status)];
@@ -241,7 +241,7 @@ contract ETRToken is ERC20, Ownable {
         require(startDate != 0 && endDate != 0 && startDate < endDate, "The configuration was not set yet.");
         require(now >= startDate, "ICO is not started yet.");
         require(now <= endDate, checkStatus());        
-        require(status != StatusType.Ended, checkStatus());
+        require(status == StatusType.Ready || status == StatusType.Started, checkStatus());
         require(!isContract(userAddress), "Cannot be a contract");
         require(!isOwner(userAddress), "You are onwer.");
         require(
