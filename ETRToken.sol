@@ -54,11 +54,8 @@ contract ETRToken is ERC20, Ownable {
     mapping(address => User) users;
     mapping(uint256 => address) userIds;
     uint256 lastUserId = 0;
-    
-    string public DEBUG = "";
-    
-    event Test(string message);
-    event Received(address, uint);
+        
+    event EventStatus(string message);
 
     constructor(uint256 initialSupply, address team)
         public
@@ -77,9 +74,7 @@ contract ETRToken is ERC20, Ownable {
         _mint(msg.sender, initialSupply.div(2));    //hard cap(50%)
         _mint(team, initialSupply.div(2));
 
-        _birthDay = now;
-        
-        emit Test("built contract");
+        _birthDay = now;        
     }    
 
     receive() external payable {
@@ -109,7 +104,7 @@ contract ETRToken is ERC20, Ownable {
     function checkStatus() public returns(string memory) {       
         string[6] memory statusMessage = [
             "The ICO is not started yet.", 
-            "Running", 
+            "The ICO is running.", 
             "The ICO has been ended.", 
             "The ICO has been finished successfully.",
             "The ICO failed. Refunding ether.",
@@ -132,9 +127,9 @@ contract ETRToken is ERC20, Ownable {
         else if( status == StatusType.Failed ) {
             
         }
-        
-        DEBUG = statusMessage[uint8(status)];
 
+        emit EventStatus(statusMessage[uint8(status)]);
+        
         return statusMessage[uint8(status)];
     }
    
@@ -154,9 +149,7 @@ contract ETRToken is ERC20, Ownable {
 
     function setStartDate(uint16 year, uint8 month, uint8 day) public onlyOwner {
         require(status == StatusType.Ready, "The ICO already has been executed. Cannot update anymore.");
-        startDate = toTimestamp(year, month, day);        
-        
-         emit Test("built contract");
+        startDate = toTimestamp(year, month, day);                
     }
 
     function setEndDate(uint16 year, uint8 month, uint8 day) public onlyOwner {
@@ -291,7 +284,7 @@ contract ETRToken is ERC20, Ownable {
             bonus = amount.mul((getBounusPercent().add(100)).div(100));
             referralBonus =  referralBonusFlag ? amount.div(4) : 0; //25%
 
-            validateResult()
+            validateResult();
         }
 
         //send ETR
