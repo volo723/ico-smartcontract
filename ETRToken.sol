@@ -188,7 +188,7 @@ contract ETRToken is ERC20, Ownable {
         return (users[user].id != 0);
     }
 
-    function withdrawEther() public onlyOwner{
+    function withdrawEther() public payable onlyOwner{
         require(status == StatusType.Success || status == StatusType.RefundedAll, "Cannot withdraw Ether until the ICO is completed or until refund all in the case of the ICO failed.");
         require(address(this).balance > 0, "Ether balance is zero.");
         
@@ -199,14 +199,14 @@ contract ETRToken is ERC20, Ownable {
         return address(this).balance;
     }
     
-    function refundAll() public onlyOwner {
+    function refundAll() public payable onlyOwner {
         require(status == StatusType.Failed, "It is possible to refund only when the ICO failed.");
         
         status = StatusType.RefundedAll;
         
         for(uint256 idx = 1; idx <= lastUserId; idx ++) {
             address payable userAddress = address(uint160(userIds[idx]));
-            User memory user = users[userAddress];
+            User storage user = users[userAddress];
             
             if( user.ethRefunded == 0 ) {
                 user.ethRefunded = user.ethAmount;
@@ -215,16 +215,16 @@ contract ETRToken is ERC20, Ownable {
         }
     }
     
-    function refund() public {
+    function refund() public payable{
         require(isUserExists(msg.sender), "User does not exist.");
         require(status == StatusType.Failed, "Cannot refund now.");
 
-        User memory user = users[msg.sender];
+        User storage user = users[msg.sender];
         
-        if( user.ethRefunded == 0 ) {
-            user.ethRefunded = user.ethAmount;
-            msg.sender.transfer(user.ethAmount);
-        }
+        require(user.ethRefunded == 0, "Refunded already.");
+        
+        user.ethRefunded = user.ethAmount;
+        msg.sender.transfer(user.ethAmount);
     }
 
     function validateResult() private {
@@ -253,7 +253,7 @@ contract ETRToken is ERC20, Ownable {
 
         uint ethAmount = msg.value;
         bool referralBonusFlag = true;
-        User memory user;
+        User storage user;
 
         if(isUserExists(userAddress)) { //ignore referral bonus
             user = users[userAddress];
@@ -262,14 +262,14 @@ contract ETRToken is ERC20, Ownable {
         else {  //new registration
             lastUserId ++;
         
-            user = User({
+            users[userAddress] = User({
                 id: lastUserId,
                 referrer: referrerAddress,
-                ethAmount: ethAmount,
+                ethAmount: 0,
                 ethRefunded: 0
             });
-
-            users[userAddress] = user;
+            user = users[userAddress];
+            
             userIds[lastUserId] = userAddress;
 
             if(isOwner(referrerAddress))
