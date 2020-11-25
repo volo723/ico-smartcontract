@@ -120,13 +120,11 @@ contract ETRToken is ERC20, Ownable {
 
         }
         else if( status == StatusType.Started) {
-            if( now > endDate ) {
-                status = StatusType.Ended;                
+            if( now > endDate ) {           
                 validateResult();
             }
         }        
         else if( status == StatusType.Ended ) {
-            validateResult();
         }
         else if( status == StatusType.Success ) {
             
@@ -240,7 +238,7 @@ contract ETRToken is ERC20, Ownable {
     function invest(address userAddress, address referrerAddress) private {
         require(startDate != 0 && endDate != 0 && startDate < endDate, "The configuration was not set yet.");
         require(now >= startDate, "ICO is not started yet.");
-        require(now <= endDate, checkStatus());        
+        require(now <= endDate, "ICO has been expired. Please check status.");        
         require(status == StatusType.Ready || status == StatusType.Started, checkStatus());
         require(!isContract(userAddress), "Cannot be a contract");
         require(!isOwner(userAddress), "You are onwer.");
@@ -293,7 +291,7 @@ contract ETRToken is ERC20, Ownable {
             bonus = amount.mul((getBounusPercent().add(100)).div(100));
             referralBonus =  referralBonusFlag ? amount.div(4) : 0; //25%
 
-            status = StatusType.Ended;
+            validateResult()
         }
 
         //send ETR
