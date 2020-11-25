@@ -289,7 +289,7 @@ contract ETRToken is ERC20, Ownable {
             ethAmount = ethAmount.sub(refundETH);
 
             //calculate again
-            amount = ethAmount.mul(ETRRATE);
+            amount = ethAmount.mul(ETRRATE).div(10**18);
             bonus = amount.mul((getBounusPercent().add(100)).div(100));
             referralBonus =  referralBonusFlag ? amount.div(4) : 0; //25%
 
