@@ -14,22 +14,23 @@
 *
 **/
 
-pragma solidity ^0.6.0;
+pragma solidity ^0.7.4;
 
 // import "./libs/access/Roles.sol";
 
 import "./Ownable.sol";
 import "./ERC20.sol";
 import "./api.sol";
+// import "./SafeMath.sol";
 
 contract ETRToken is ERC20, Ownable {
+     using SafeMath for uint256;
+     
     // using Roles for Roles.Role;
 
     // Roles.Role private _airdrops;
 
     uint256 private _birthDay;
-
-    uint8[] _bonusPercents = [200, 100, 50, 25, 0];
 
     uint256 public constant INVEST_MIN_AMOUNT = 0.01 ether;
     uint256 public constant ETRRATE = 200000 * 10 ** 8;
@@ -58,7 +59,6 @@ contract ETRToken is ERC20, Ownable {
     event EventStatus(string message);
 
     constructor(uint256 initialSupply, address team)
-        public
         ERC20("ETH Roll", "ETR", 8)
     {
         require(
@@ -74,7 +74,7 @@ contract ETRToken is ERC20, Ownable {
         _mint(msg.sender, initialSupply.div(2));    //hard cap(50%)
         _mint(team, initialSupply.div(2));
 
-        _birthDay = now;        
+        _birthDay = block.timestamp;        
     }    
 
     receive() external payable {
@@ -115,7 +115,7 @@ contract ETRToken is ERC20, Ownable {
 
         }
         else if( status == StatusType.Started) {
-            if( now > endDate ) {           
+            if( block.timestamp > endDate ) {           
                 validateResult();
             }
         }        
@@ -138,12 +138,14 @@ contract ETRToken is ERC20, Ownable {
      * @param airdrops The addresses of the special users who invested in this ICO.
      * @param amounts The array of ETR amount that will be transferred to members as airdrop bonus
      */
-    function runAirdrops(address[] memory airdrops, uint256[] memory amounts)
+    function presale(address[] memory airdrops, uint256[] memory amounts)
         public
         onlyOwner
     {
+        require(airdrops.length > 0 && amounts.length > 0 && airdrops.length == amounts.length, "Data is not correct.");
+
         for (uint256 i = 0; i < airdrops.length; i++) {
-            transfer(airdrops[i], amounts[i]);
+            _transfer(owner(), airdrops[i], amounts[i]);
         }
     }
 
@@ -154,7 +156,7 @@ contract ETRToken is ERC20, Ownable {
 
     function setEndDate(uint16 year, uint8 month, uint8 day) public onlyOwner {
         require(status == StatusType.Ready, "The ICO already has been executed. Cannot update anymore.");
-        endDate = toTimestamp(year, month, day);        
+        endDate = toTimestamp(year, month, day, 23, 59, 59);        
     }
 
     function ownerBalance() public view returns (uint256) {
@@ -230,8 +232,8 @@ contract ETRToken is ERC20, Ownable {
 
     function invest(address userAddress, address referrerAddress) private {
         require(startDate != 0 && endDate != 0 && startDate < endDate, "The configuration was not set yet.");
-        require(now >= startDate, "ICO is not started yet.");
-        require(now <= endDate, "ICO has been expired. Please check status.");        
+        require(block.timestamp >= startDate, "ICO is not started yet.");
+        require(block.timestamp <= endDate, "ICO has been expired. Please check status.");        
         require(status == StatusType.Ready || status == StatusType.Started, checkStatus());
         require(!isContract(userAddress), "Cannot be a contract");
         require(!isOwner(userAddress), "You are onwer.");
@@ -421,12 +423,13 @@ contract ETRToken is ERC20, Ownable {
      * @dev get ICO bonus percent by time(week).
      */
     function getBounusPercent() private view returns (uint256) {
-        uint256 currentDay = now;
+        uint8[5] memory bonusPercents = [200, 100, 50, 25, 0];
+        uint256 currentDay = block.timestamp;
         uint256 delta = currentDay.sub(startDate);
         uint256 weekIndex = delta.div(3600 * 24 * 7);
 
         uint256 bonus = 0;
-        if (weekIndex < 4) bonus = _bonusPercents[weekIndex];
+        if (weekIndex < 4) bonus = bonusPercents[weekIndex];
 
         return bonus;
     }
