@@ -244,7 +244,7 @@ contract ETRToken is ERC20, Ownable {
 
         status = StatusType.Started;
 
-        uint ethAmount = msg.value;
+        uint256 ethAmount = msg.value;  //wei
         bool referralBonusFlag = true;
         User storage user;
 
